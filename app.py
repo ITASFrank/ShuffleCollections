@@ -1,9 +1,9 @@
 import os
 import requests
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="static")
 CORS(app)
 
 SHOPIFY_API_KEY = os.getenv("SHOPIFY_API_KEY")
@@ -27,7 +27,14 @@ def get_collection_ids():
     except requests.RequestException as e:
         print(f"Shopify API error: {e}")
         return jsonify([]), 500
-    
+
+@app.route("/")
+def serve_index():
+    return send_from_directory(app.static_folder, "index.html")
+
+@app.route("/<path:path>")
+def serve_static(path):
+    return send_from_directory(app.static_folder, path)
+
 if __name__ == "__main__":
     app.run(debug=False, host="0.0.0.0", port=5000)
-    
