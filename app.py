@@ -30,7 +30,7 @@ def get_collection_ids():
 
 @app.route("/")
 def serve_index():
-    return send_from_directory(app.static_folder, "index.html")
+    return send_from_directory(app.static_folder, "app.js")
 
 @app.route("/<path:path>")
 def serve_static(path):
