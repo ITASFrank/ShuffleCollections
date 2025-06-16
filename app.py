@@ -27,7 +27,7 @@ def get_collection_ids():
     except requests.RequestException as e:
         print(f"Shopify API error: {e}")
         return jsonify([]), 500
-
+    
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=False, host="0.0.0.0", port=5000)
     
