@@ -1,0 +1,22 @@
+name = "CollectionShuffle"
+client_id = "9f1054639084928a781d7b0f546f90ab"
+application_url = "https://shufflecollections.onrender.com"
+embedded = true
+scopes = "read_products, write_products, read_inventory, write_inventory, read_locations"
+
+[auth]
+redirect_urls = [
+  "https://shufflecollections.onrender.com/auth/callback",
+  "https://shufflecollections.onrender.com/api/auth"
+]
+
+[webhooks]
+api_version = "2025-04"
+
+[[webhooks.subscriptions]]
+topics = ["app/uninstalled"]
+uri = "/webhooks/app/uninstalled"
+
+[[webhooks.subscriptions]]
+topics = ["app/scopes_update"]
+uri = "/webhooks/app/scopes_update"
