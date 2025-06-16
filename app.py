@@ -8,7 +8,7 @@ CORS(app)
 
 SHOPIFY_API_KEY = os.getenv("SHOPIFY_API_KEY")
 SHOPIFY_STORE = os.getenv("SHOPIFY_STORE")
-API_VERSION = "2023-10"
+API_VERSION = "2025-07"
 
 @app.route("/api/collections")
 def get_collection_ids():
