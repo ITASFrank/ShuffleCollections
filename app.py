@@ -4,18 +4,20 @@ from flask import Flask, jsonify, send_from_directory, request
 from flask_cors import CORS
 from dotenv import load_dotenv
 
-
+# Load environment variables from .env file
 load_dotenv()
-
 
 app = Flask(__name__, static_folder="static")
 CORS(app)
 
 SHOPIFY_API_KEY = os.getenv("SHOPIFY_API_KEY")
 SHOPIFY_API_SECRET = os.getenv("SHOPIFY_API_SECRET")
-SHOPIFY_STORE = os.getenv("SHOPIFY_STORE")
+SHOPIFY_STORE = os.getenv("SHOPIFY_STORE")  # should be just "testforcsvpdf.myshopify.com"
 ACCESS_TOKEN = os.getenv("SHOPIFY_ACCESS_TOKEN")
 API_VERSION = "2025-07"
+
+print("✅ SHOPIFY_STORE:", SHOPIFY_STORE)
+print("✅ ACCESS_TOKEN:", ACCESS_TOKEN)
 
 @app.route("/api/collections")
 def get_collection_ids():
