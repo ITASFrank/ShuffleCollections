@@ -1,29 +1,60 @@
 import os
 import requests
-from flask import Flask, jsonify, send_from_directory, request
+from flask import Flask, jsonify, redirect, request, session, send_from_directory
 from flask_cors import CORS
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
+from urllib.parse import urlencode
 
 app = Flask(__name__, static_folder="static")
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev")
 CORS(app)
 
 SHOPIFY_API_KEY = os.getenv("SHOPIFY_API_KEY")
 SHOPIFY_API_SECRET = os.getenv("SHOPIFY_API_SECRET")
-SHOPIFY_STORE = os.getenv("SHOPIFY_STORE")  # should be just "testforcsvpdf.myshopify.com"
-ACCESS_TOKEN = os.getenv("SHOPIFY_ACCESS_TOKEN")
+SHOPIFY_STORE = os.getenv("SHOPIFY_STORE")
 API_VERSION = "2025-07"
+REDIRECT_URI = os.getenv("REDIRECT_URI", "https://shufflecollections.onrender.com/auth/callback")
 
-print("✅ SHOPIFY_STORE:", SHOPIFY_STORE)
-print("✅ ACCESS_TOKEN:", ACCESS_TOKEN)
+@app.route("/api/auth")
+def auth():
+    params = {
+        "client_id": SHOPIFY_API_KEY,
+        "scope": "read_products,write_products,read_customers,read_content",
+        "redirect_uri": REDIRECT_URI,
+        "response_type": "code",
+    }
+    url = f"https://{SHOPIFY_STORE}/admin/oauth/authorize?{urlencode(params)}"
+    return redirect(url)
+
+@app.route("/auth/callback")
+def auth_callback():
+    code = request.args.get("code")
+    if not code:
+        return "Missing code parameter", 400
+
+    token_url = f"https://{SHOPIFY_STORE}/admin/oauth/access_token"
+    payload = {
+        "client_id": SHOPIFY_API_KEY,
+        "client_secret": SHOPIFY_API_SECRET,
+        "code": code
+    }
+    try:
+        response = requests.post(token_url, json=payload)
+        response.raise_for_status()
+        session["shopify_token"] = response.json()["access_token"]
+        return redirect("/")
+    except Exception as e:
+        print("OAuth callback failed:", e)
+        return "Auth error", 500
 
 @app.route("/api/collections")
 def get_collection_ids():
+    access_token = session.get("shopify_token")
+    if not access_token:
+        return jsonify({"error": "Unauthorized"}), 401
+
     url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/custom_collections.json"
     headers = {
-        "X-Shopify-Access-Token": ACCESS_TOKEN,
+        "X-Shopify-Access-Token": access_token,
         "Content-Type": "application/json"
     }
 
@@ -45,7 +76,6 @@ def set_shuffle_schedule():
     collection_id = data.get("collectionId")
     interval = data.get("interval")
     print(f"Scheduled shuffle for collection {collection_id} every {interval}")
-    # TODO: Add cronjob logic or database queueing
     return jsonify({"success": True})
 
 @app.route("/")
