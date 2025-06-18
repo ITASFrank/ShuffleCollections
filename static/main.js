@@ -54,18 +54,13 @@ shuffleBtn.onclick = () => {
     return;
   }
 
-  fetch("/api/shuffle-now", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ collectionId: manualId })
+fetch("/api/shuffle-now", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    smart_id: document.getElementById("smartCollectionSelect").value,
+    manual_id: document.getElementById("manualCollectionSelect").value
   })
-    .then(res => res.json())
-    .then(res => {
-      if (res.success) {
-        statusText.textContent = `Shuffled ${res.shuffled} products!`;
-      } else {
-        statusText.textContent = res.error || "Failed to shuffle.";
-      }
-    });
+});
 };
 
