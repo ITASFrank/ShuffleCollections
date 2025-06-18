@@ -108,39 +108,34 @@ def create_mirror():
         gql_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/graphql.json"
         query = """
         query getProducts($collectionId: ID!) {
-        collection(id: $collectionId) {
-            products(first: 100) {
-            edges {
-                node {
-                id
+            collection(id: $collectionId) {
+                products(first: 100) {
+                    edges {
+                        node {
+                            id
+                        }
+                    }
                 }
             }
-            }
-        }
         }
         """
 
         variables = {"collectionId": f"gid://shopify/Collection/{smart_id}"}
-        print("RAW GraphQL Response:", gql_res.text)
         gql_res = requests.post(gql_url, headers=headers, json={"query": query, "variables": variables})
-        gql_res.raise_for_status()        
+        gql_res.raise_for_status()
+
+        print("RAW GQL RESPONSE:", gql_res.text)
         json_data = gql_res.json()
-        print("GQL RESPONSE:", json_data)
 
         try:
-            gql_res = requests.post(gql_url, headers=headers, json={"query": query, "variables": variables})
-            gql_res.raise_for_status()
-            print("RAW GQL RESPONSE:", gql_res.text)
-            json_data = gql_res.json()
             products = json_data["data"]["collection"]["products"]["edges"]
-        except Exception as e:
-            print("GraphQL fetch failed:", e)
-            return jsonify({"error": "Failed to fetch products via GraphQL"}), 500
-        
+        except KeyError as e:
+            print("GraphQL key error:", e)
+            return jsonify({"error": "GraphQL data format issue"}), 500
+
         product_ids = [edge["node"]["id"].split("/")[-1] for edge in products]
         random.shuffle(product_ids)
 
-        # Clear existing collects from mirror collection
         clear_collects = requests.get(f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects.json?collection_id={manual_id}&limit=250", headers=headers)
         if clear_collects.ok:
             for c in clear_collects.json().get("collects", []):
