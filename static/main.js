@@ -1,47 +1,58 @@
-async function fetchCollections() {
-  const res = await fetch("/api/collections");
-  const collections = await res.json();
-  const smart = collections.filter(c => c.type === "smart");
-  const manual = collections.filter(c => c.type === "manual");
+const smartSelect = document.getElementById("smartSelect");
+const mirrorSelect = document.getElementById("mirrorSelect");
+const mirrorName = document.getElementById("mirrorName");
+const mirrorBtn = document.getElementById("mirrorBtn");
+const shuffleBtn = document.getElementById("shuffleBtn");
+const statusText = document.getElementById("statusText");
 
-  const smartSelect = document.getElementById("smartSelect");
-  const mirrorSelect = document.getElementById("mirrorSelect");
+let allCollections = [];
 
-  smart.forEach(c => {
-    const opt = document.createElement("option");
-    opt.value = c.id;
-    opt.textContent = c.title;
-    smartSelect.appendChild(opt);
+fetch("/api/collections")
+  .then(res => res.json())
+  .then(data => {
+    allCollections = data;
+    data.forEach(col => {
+      const opt = document.createElement("option");
+      opt.value = col.id;
+      opt.textContent = `${col.title} (${col.id})`;
+      if (col.rules) smartSelect.appendChild(opt);
+      else mirrorSelect.appendChild(opt.cloneNode(true));
+    });
   });
 
-  manual.forEach(c => {
-    const opt = document.createElement("option");
-    opt.value = c.id;
-    opt.textContent = c.title;
-    mirrorSelect.appendChild(opt);
-  });
-}
+mirrorBtn.onclick = () => {
+  const smartId = smartSelect.value;
+  const manualId = mirrorSelect.value || null;
+  const title = mirrorName.value || "Shuffle Mirror";
 
-document.getElementById("shuffleBtn").addEventListener("click", async () => {
-  const smartId = document.getElementById("smartSelect").value;
-  const mirrorId = document.getElementById("mirrorSelect").value;
-  const mirrorTitle = document.getElementById("mirrorTitle").value;
-  const status = document.getElementById("status");
-
-  const body = {
-    smart_id: smartId,
-    mirror_id: mirrorId || null,
-    mirror_title: mirrorTitle || "Shuffled Collection"
-  };
-
-  const res = await fetch("/api/mirror-shuffle", {
+  fetch("/api/mirror", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  });
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ smart_id: smartId, manual_id: manualId, title })
+  })
+    .then(res => res.json())
+    .then(res => {
+      if (res.mirror_created) {
+        statusText.textContent = "Mirror set! Now shuffle!";
+      } else {
+        statusText.textContent = res.error || "Error creating mirror.";
+      }
+    });
+};
 
-  const data = await res.json();
-  status.textContent = data.success ? "Shuffling complete!" : `Error: ${data.error}`;
-});
-
-window.onload = fetchCollections;
+shuffleBtn.onclick = () => {
+  const smartId = smartSelect.value;
+  fetch("/api/shuffle-now", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ smart_id: smartId })
+  })
+    .then(res => res.json())
+    .then(res => {
+      if (res.success) {
+        statusText.textContent = `Shuffled ${res.products_shuffled} products!`;
+      } else {
+        statusText.textContent = res.error || "Failed to shuffle.";
+      }
+    });
+};
