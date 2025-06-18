@@ -78,109 +78,30 @@ def get_collection_ids():
         print(f"Shopify API error: {e}")
         return jsonify({"error": "API failure"}), 500
 
-@app.route("/api/mirror", methods=["POST"])
-def create_mirror():
+@app.route("/api/shuffle-all", methods=["POST"])
+def shuffle_all_collections():
     access_token = session.get("shopify_token")
     if not access_token:
         return jsonify({"error": "Unauthorized"}), 401
 
-    data = request.get_json()
-    smart_id = data.get("smart_id")
-    manual_id = data.get("manual_id")
-    title = data.get("title") or "Shuffle Mirror"
-
+    base_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}"
+    gql_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/graphql.json"
     headers = {
         "X-Shopify-Access-Token": access_token,
         "Content-Type": "application/json"
     }
 
-    if not manual_id:
-        create_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/custom_collections.json"
-        payload = {"custom_collection": {"title": title}}
-        try:
-            res = requests.post(create_url, headers=headers, json=payload)
-            res.raise_for_status()
-            manual_id = res.json()["custom_collection"]["id"]
-        except Exception as e:
-            print("Mirror creation failed:", e)
-            return jsonify({"error": "Failed to create mirror collection"}), 500
-
-    try:
-        # Use REST to get all products from smart collection including drafts
-        products = []
-        next_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/products.json?collection_id={smart_id}&published_status=any&limit=250"
-
-        while next_url:
-            res = requests.get(next_url, headers=headers)
-            res.raise_for_status()
-            products.extend(res.json().get("products", []))
-            next_url = None
-            link_header = res.headers.get("Link", "")
-            if 'rel="next"' in link_header:
-                match = re.search(r'<([^>]+)>; rel="next"', link_header)
-                if match:
-                    next_url = match.group(1)
-
-        product_ids = [p["id"] for p in products]
-        random.shuffle(product_ids)
-
-        clear_collects = requests.get(f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects.json?collection_id={manual_id}&limit=250", headers=headers)
-        if clear_collects.ok:
-            for c in clear_collects.json().get("collects", []):
-                requests.delete(f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects/{c['id']}.json", headers=headers)
-
-        for position, pid in enumerate(product_ids):
-            collect_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects.json"
-            collect_payload = {
-                "collect": {
-                    "collection_id": manual_id,
-                    "product_id": pid,
-                    "position": position + 1
-                }
-            }
-            requests.post(collect_url, headers=headers, json=collect_payload)
-
-        return jsonify({"success": True, "mirror_created": True, "mirror_id": manual_id})
-    except Exception as e:
-        print("Error syncing products:", e)
-        return jsonify({"error": "Failed syncing products to mirror"}), 500
-
-@app.route("/api/schedule", methods=["POST"])
-def set_shuffle_schedule():
-    data = request.get_json()
-    collection_id = data.get("collectionId")
-    interval = data.get("interval")
-    print(f"Scheduled shuffle for collection {collection_id} every {interval}")
-    return jsonify({"success": True})
-
-@app.route("/api/shuffle-now", methods=["POST"])
-def shuffle_collection_now():
-    access_token = session.get("shopify_token")
-    if not access_token:
-        return jsonify({"error": "Unauthorized"}), 401
-
-    data = request.get_json()
-    collection_id = data.get("collectionId")
-    headers = {
-        "X-Shopify-Access-Token": access_token,
-        "Content-Type": "application/json"
-    }
-
-    gid = f"gid://shopify/Collection/{collection_id}"
-    collects_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects.json?collection_id={collection_id}&limit=250"
-    try:
+    def fetch_collects(cid):
+        collects_url = f"{base_url}/collects.json?collection_id={cid}&limit=250"
         res = requests.get(collects_url, headers=headers)
         res.raise_for_status()
-        collects = res.json().get("collects", [])
-        product_ids = [c["product_id"] for c in collects]
+        return [c["product_id"] for c in res.json().get("collects", [])]
+
+    def reorder_collection(cid):
+        gid = f"gid://shopify/Collection/{cid}"
+        product_ids = fetch_collects(cid)
         random.shuffle(product_ids)
-
-        moves = [{
-            "id": f"gid://shopify/Product/{pid}",
-            "newPosition": str(idx)
-        } for idx, pid in enumerate(product_ids)]
-
-        gql_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/graphql.json"
+        moves = [{"id": f"gid://shopify/Product/{pid}", "newPosition": str(i)} for i, pid in enumerate(product_ids)]
         query = """
         mutation collectionReorder($id: ID!, $moves: [MoveInput!]!) {
             collectionReorderProducts(id: $id, moves: $moves) {
@@ -189,24 +110,21 @@ def shuffle_collection_now():
             }
         }
         """
+        res = requests.post(gql_url, headers=headers, json={"query": query, "variables": {"id": gid, "moves": moves}})
+        return res.json()
 
-        gql_payload = {
-            "query": query,
-            "variables": {
-                "id": gid,
-                "moves": moves
-            }
-        }
-
-        gql_res = requests.post(gql_url, headers=headers, json=gql_payload)
-        gql_res.raise_for_status()
-        result = gql_res.json()
-        print("GraphQL Response:", result)
-        return jsonify({"success": True, "response": result})
-
+    try:
+        res = requests.get(f"{base_url}/custom_collections.json", headers=headers)
+        res.raise_for_status()
+        collections = res.json().get("custom_collections", [])
+        results = {}
+        for col in collections:
+            cid = col["id"]
+            results[cid] = reorder_collection(cid)
+        return jsonify(results)
     except Exception as e:
-        print("Shuffle failed:", e)
-        return jsonify({"error": "Shuffle failed"}), 500
+        print("Shuffle all failed:", e)
+        return jsonify({"error": "Shuffle all failed"}), 500
 
 @app.route("/")
 def serve_index():
