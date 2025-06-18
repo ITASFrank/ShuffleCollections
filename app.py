@@ -109,7 +109,7 @@ def create_mirror():
         query = """
         query getProducts($collectionId: ID!) {
             collection(id: $collectionId) {
-                products(first: 100) {
+                products(first: 100, published_status: ANY) {
                     edges {
                         node {
                             id
