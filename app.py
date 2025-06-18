@@ -123,8 +123,15 @@ def create_mirror():
         variables = {"collectionId": f"gid://shopify/Collection/{smart_id}"}
         print("RAW GraphQL Response:", gql_res.text)
         gql_res = requests.post(gql_url, headers=headers, json={"query": query, "variables": variables})
-        gql_res.raise_for_status()
-        products = gql_res.json()["data"]["collection"]["products"]["edges"]
+        gql_res.raise_for_status()        
+        json_data = gql_res.json()
+        print("GQL RESPONSE:", json_data)
+
+        try:
+            products = json_data["data"]["collection"]["products"]["edges"]
+        except KeyError:
+            return jsonify({"error": "GraphQL response missing 'data'"}), 500
+        
         product_ids = [edge["node"]["id"].split("/")[-1] for edge in products]
         random.shuffle(product_ids)
 
