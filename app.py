@@ -78,30 +78,34 @@ def get_collection_ids():
         print(f"Shopify API error: {e}")
         return jsonify({"error": "API failure"}), 500
 
-@app.route("/api/shuffle-all", methods=["POST"])
-def shuffle_all_collections():
+@app.route("/api/shuffle-now", methods=["POST"])
+def shuffle_collection_now():
     access_token = session.get("shopify_token")
     if not access_token:
         return jsonify({"error": "Unauthorized"}), 401
 
-    base_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}"
-    gql_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/graphql.json"
+    data = request.get_json()
+    collection_id = data.get("collectionId")
     headers = {
         "X-Shopify-Access-Token": access_token,
         "Content-Type": "application/json"
     }
 
-    def fetch_collects(cid):
-        collects_url = f"{base_url}/collects.json?collection_id={cid}&limit=250"
+    gid = f"gid://shopify/Collection/{collection_id}"
+    collects_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects.json?collection_id={collection_id}&limit=250"
+    try:
         res = requests.get(collects_url, headers=headers)
         res.raise_for_status()
-        return [c["product_id"] for c in res.json().get("collects", [])]
-
-    def reorder_collection(cid):
-        gid = f"gid://shopify/Collection/{cid}"
-        product_ids = fetch_collects(cid)
+        collects = res.json().get("collects", [])
+        product_ids = [c["product_id"] for c in collects]
         random.shuffle(product_ids)
-        moves = [{"id": f"gid://shopify/Product/{pid}", "newPosition": str(i)} for i, pid in enumerate(product_ids)]
+
+        moves = [{
+            "id": f"gid://shopify/Product/{pid}",
+            "newPosition": str(idx)
+        } for idx, pid in enumerate(product_ids)]
+
+        gql_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/graphql.json"
         query = """
         mutation collectionReorder($id: ID!, $moves: [MoveInput!]!) {
             collectionReorderProducts(id: $id, moves: $moves) {
@@ -110,21 +114,23 @@ def shuffle_all_collections():
             }
         }
         """
-        res = requests.post(gql_url, headers=headers, json={"query": query, "variables": {"id": gid, "moves": moves}})
-        return res.json()
 
-    try:
-        res = requests.get(f"{base_url}/custom_collections.json", headers=headers)
-        res.raise_for_status()
-        collections = res.json().get("custom_collections", [])
-        results = {}
-        for col in collections:
-            cid = col["id"]
-            results[cid] = reorder_collection(cid)
-        return jsonify(results)
+        gql_payload = {
+            "query": query,
+            "variables": {
+                "id": gid,
+                "moves": moves
+            }
+        }
+
+        gql_res = requests.post(gql_url, headers=headers, json=gql_payload)
+        gql_res.raise_for_status()
+        result = gql_res.json()
+        return jsonify({"success": True, "response": result})
+
     except Exception as e:
-        print("Shuffle all failed:", e)
-        return jsonify({"error": "Shuffle all failed"}), 500
+        print("Shuffle failed:", e)
+        return jsonify({"error": "Shuffle failed"}), 500
 
 @app.route("/")
 def serve_index():
