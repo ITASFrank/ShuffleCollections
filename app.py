@@ -143,7 +143,7 @@ def set_shuffle_schedule():
     print(f"Scheduled shuffle for collection {collection_id} every {interval}")
     return jsonify({"success": True})
 
-# Shuffle Now Endpoint
+
 @app.route("/api/shuffle-now", methods=["POST"])
 def shuffle_collection_now():
     access_token = session.get("shopify_token")
@@ -157,33 +157,48 @@ def shuffle_collection_now():
         "Content-Type": "application/json"
     }
 
+    # Convert numeric ID to GID
+    gid = f"gid://shopify/Collection/{collection_id}"
+
+    # Get collects (products in collection)
+    collects_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects.json?collection_id={collection_id}&limit=250"
     try:
-        # Step 1: Get current collects
-        collects_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects.json?collection_id={collection_id}&limit=250"
         res = requests.get(collects_url, headers=headers)
         res.raise_for_status()
         collects = res.json().get("collects", [])
         product_ids = [c["product_id"] for c in collects]
-
-        # Step 2: Delete existing collects
-        for c in collects:
-            delete_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects/{c['id']}.json"
-            requests.delete(delete_url, headers=headers)
-
-        # Step 3: Shuffle and re-add
         random.shuffle(product_ids)
-        for pos, pid in enumerate(product_ids):
-            post_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects.json"
-            payload = {
-                "collect": {
-                    "collection_id": collection_id,
-                    "product_id": pid,
-                    "position": pos + 1
-                }
-            }
-            requests.post(post_url, headers=headers, json=payload)
 
-        return jsonify({"success": True, "products_shuffled": len(product_ids)})
+        # Convert product IDs to GIDs
+        moves = [{
+            "id": f"gid://shopify/Product/{pid}",
+            "newPosition": idx
+        } for idx, pid in enumerate(product_ids)]
+
+        # GraphQL Mutation
+        gql_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/graphql.json"
+        query = """
+        mutation collectionReorder($id: ID!, $moves: [MoveInput!]!) {
+            collectionReorderProducts(id: $id, moves: $moves) {
+                job { id status }
+                userErrors { field message }
+            }
+        }
+        """
+
+        gql_payload = {
+            "query": query,
+            "variables": {
+                "id": gid,
+                "moves": moves
+            }
+        }
+
+        gql_res = requests.post(gql_url, headers=headers, json=gql_payload)
+        gql_res.raise_for_status()
+        result = gql_res.json()
+        return jsonify({"success": True, "response": result})
+
     except Exception as e:
         print("Shuffle failed:", e)
         return jsonify({"error": "Shuffle failed"}), 500
