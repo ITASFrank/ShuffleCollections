@@ -56,3 +56,24 @@ shuffleBtn.onclick = () => {
       }
     });
 };
+
+fetch("/api/collections")
+  .then(res => res.json())
+  .then(data => {
+    const smartSelect = document.getElementById("smartCollectionSelect");
+    const manualSelect = document.getElementById("manualCollectionSelect");
+
+    data.smart.forEach(c => {
+      const opt = document.createElement("option");
+      opt.value = c.id;
+      opt.textContent = c.title;
+      smartSelect.appendChild(opt);
+    });
+
+    data.manual.forEach(c => {
+      const opt = document.createElement("option");
+      opt.value = c.id;
+      opt.textContent = c.title;
+      manualSelect.appendChild(opt);
+    });
+  });

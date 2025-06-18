@@ -64,7 +64,6 @@ def get_collection_ids():
     }
 
     try:
-        # Fetch both custom and smart collections
         custom_res = requests.get(f"{base_url}/custom_collections.json", headers=headers)
         smart_res = requests.get(f"{base_url}/smart_collections.json", headers=headers)
 
@@ -74,13 +73,14 @@ def get_collection_ids():
         custom_data = custom_res.json().get("custom_collections", [])
         smart_data = smart_res.json().get("smart_collections", [])
 
-        all_collections = custom_data + smart_data
-        collection_ids = [{"id": c["id"], "title": c["title"]} for c in all_collections]
-
-        return jsonify(collection_ids)
+        return jsonify({
+            "manual": [{"id": c["id"], "title": c["title"]} for c in custom_data],
+            "smart": [{"id": c["id"], "title": c["title"]} for c in smart_data]
+        })
     except requests.RequestException as e:
         print(f"Shopify API error: {e}")
-        return jsonify([]), 500
+        return jsonify({"error": "API failure"}), 500
+
 
 # Shuffle Schedule Placeholder
 @app.route("/api/schedule", methods=["POST"])
