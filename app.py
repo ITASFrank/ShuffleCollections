@@ -179,12 +179,12 @@ def shuffle_collection_now():
         gql_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/graphql.json"
         query = """
         mutation collectionReorder($id: ID!, $moves: [MoveInput!]!) {
-            collectionReorderProducts(id: $id, moves: $moves) {
-                job { id status }
-                userErrors { field message }
-            }
+        collectionReorderProducts(id: $id, moves: $moves) {
+            job { id }
+            userErrors { field message }
         }
-        """
+    }
+"""
 
         gql_payload = {
             "query": query,
