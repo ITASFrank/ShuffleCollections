@@ -172,7 +172,7 @@ def shuffle_collection_now():
         # Convert product IDs to GIDs
         moves = [{
             "id": f"gid://shopify/Product/{pid}",
-            "newPosition": idx
+            "newPosition": str(idx)
         } for idx, pid in enumerate(product_ids)]
 
         # GraphQL Mutation
