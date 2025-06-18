@@ -47,3 +47,18 @@ document.getElementById("quickShuffleBtn").addEventListener("click", async () =>
     statusText.textContent = "Shuffle failed.";
   }
 });
+document.getElementById("run").onclick = async ()=>{
+  const smartId = document.getElementById("smartId").value;
+  const customId = document.getElementById("customId").value;
+  const title = document.getElementById("title").value;
+  const res = await fetch("/api/mirror-shuffle", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ smartId, customId: customId||null, title })
+  });
+  const json = await res.json();
+  if(json.success){
+    document.getElementById("result").innerText =
+      `Shuffled ${json.count} products into Custom Collection ID ${json.customId}`;
+  } else document.getElementById("result").innerText = `Error`;
+};

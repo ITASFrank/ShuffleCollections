@@ -1,30 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Shuffle Collection Scheduler</title>
-  <link rel="stylesheet" href="styles.css" />
-</head>
+<html><head><meta charset="UTF-8"><title>Mirror Shuffle</title></head>
 <body>
-  <div class="container">
-    <h1>Shuffle Collection Scheduler</h1>
-    <div class="card">
-      <label for="collection">Select Collection</label>
-      <select id="collection"></select>
-
-      <label for="interval">Shuffle Interval</label>
-      <select id="interval" defaultValue="hourly">
-        <option value="hourly">Hourly</option>
-        <option value="daily">Daily</option>
-        <option value="weekly">Weekly</option>
-      </select>
-
-      <button id="scheduleBtn">Set Shuffle</button>
-      <button id="quickShuffleBtn">Quick Shuffle</button>
-      <p id="statusText"></p>
-    </div>
-  </div>
+  <h1>Shuffle Smart Collection!</h1>
+  <label>Smart Collection ID: <input id="smartId"></label><br>
+  <label>Mirror Custom ID (optional): <input id="customId"></label><br>
+  <label>Mirror Title: <input id="title" value="Shuffle Mirror"></label><br>
+  <button id="run">Mirror & Shuffle</button>
+  <div id="result"></div>
   <script src="main.js"></script>
 </body>
 </html>

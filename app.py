@@ -1,144 +1,67 @@
-import os
-import requests
-import random
-from flask import Flask, jsonify, redirect, request, session, send_from_directory
-from flask_cors import CORS
+import os, random, requests
+from flask import Flask, request, session, jsonify, send_from_directory, redirect, url_for
 from urllib.parse import urlencode
+from dotenv import load_dotenv
 
+load_dotenv()
 app = Flask(__name__, static_folder="static")
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev")
-CORS(app)
+SHOP = os.getenv("SHOPIFY_STORE")
+API_VER = "2025-07"
+KEY, SECRET = os.getenv("SHOPIFY_API_KEY"), os.getenv("SHOPIFY_API_SECRET")
+REDIRECT = os.getenv("REDIRECT_URI")
 
-# Environment Variables
-SHOPIFY_API_KEY = os.getenv("SHOPIFY_API_KEY")
-SHOPIFY_API_SECRET = os.getenv("SHOPIFY_API_SECRET")
-SHOPIFY_STORE = os.getenv("SHOPIFY_STORE")
-API_VERSION = "2025-07"
-REDIRECT_URI = os.getenv("REDIRECT_URI", "https://shufflecollections.onrender.com/api/auth/callback")
+def headers(token): return {"X-Shopify-Access-Token": token, "Content-Type": "application/json"}
 
-# OAuth Authorization Step 1
 @app.route("/api/auth")
 def auth():
-    params = {
-        "client_id": SHOPIFY_API_KEY,
-        "scope": "read_products,write_products,read_custom_collections,write_custom_collections",
-        "redirect_uri": REDIRECT_URI,
-        "response_type": "code",
-    }
-    url = f"https://{SHOPIFY_STORE}/admin/oauth/authorize?{urlencode(params)}"
-    return redirect(url)
+    params = {"client_id": KEY, "scope": "read_products,write_products,read_custom_collections,write_custom_collections", "redirect_uri": REDIRECT}
+    return redirect(f"https://{SHOP}/admin/oauth/authorize?{urlencode(params)}")
 
-# OAuth Callback Step 2
 @app.route("/api/auth/callback")
-def auth_callback():
+def cb():
     code = request.args.get("code")
-    if not code:
-        return "Missing code parameter", 400
+    resp = requests.post(f"https://{SHOP}/admin/oauth/access_token", json={"client_id":KEY,"client_secret":SECRET,"code":code})
+    session["token"] = resp.json()["access_token"]
+    return redirect("/")
 
-    token_url = f"https://{SHOPIFY_STORE}/admin/oauth/access_token"
-    payload = {
-        "client_id": SHOPIFY_API_KEY,
-        "client_secret": SHOPIFY_API_SECRET,
-        "code": code
-    }
-    try:
-        response = requests.post(token_url, json=payload)
-        response.raise_for_status()
-        session["shopify_token"] = response.json()["access_token"]
-        return redirect("/")
-    except Exception as e:
-        print("OAuth callback failed:", e)
-        return "Auth error", 500
+def get_smart_products(smart_id):
+    r = requests.get(f"https://{SHOP}/admin/api/{API_VER}/collections/{smart_id}/products.json", headers=headers(session["token"]))
+    r.raise_for_status()
+    return [p["id"] for p in r.json().get("products",[])]
 
-# Fetch Custom Collections
-@app.route("/api/collections")
-def get_collection_ids():
-    access_token = session.get("shopify_token")
-    if not access_token:
-        return jsonify({"error": "Unauthorized"}), 401
+def clear_collects(custom_id):
+    c = requests.get(f"https://{SHOP}/admin/api/{API_VER}/collects.json", params={"collection_id":custom_id}, headers=headers(session["token"]))
+    for col in c.json().get("collects", []):
+        requests.delete(f"https://{SHOP}/admin/api/{API_VER}/collects/{col['id']}.json",
+                        headers=headers(session["token"]))
 
-    base_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}"
-    headers = {
-        "X-Shopify-Access-Token": access_token,
-        "Content-Type": "application/json"
-    }
+def create_collects(custom_id, ids):
+    for i, pid in enumerate(ids,1):
+        requests.post(f"https://{SHOP}/admin/api/{API_VER}/collects.json", headers=headers(session["token"]),
+                      json={"collect":{"collection_id":custom_id,"product_id":pid,"position":i}})
 
-    try:
-        # Fetch both custom and smart collections
-        custom_res = requests.get(f"{base_url}/custom_collections.json", headers=headers)
-        smart_res = requests.get(f"{base_url}/smart_collections.json", headers=headers)
+@app.route("/api/mirror-shuffle", methods=["POST"])
+def mirror_shuffle():
+    data = request.json
+    smart_id = data["smartId"]; custom_id = data.get("customId"); title = data.get("title","Shuffle Mirror")
+    # fetch products
+    ids = get_smart_products(smart_id)
+    random.shuffle(ids)
+    # create custom collection if needed
+    if not custom_id:
+        resp = requests.post(f"https://{SHOP}/admin/api/{API_VER}/custom_collections.json", headers=headers(session["token"]),
+                             json={"custom_collection":{"title":title}})
+        custom_id = resp.json()["custom_collection"]["id"]
+    # rebuild mirror
+    clear_collects(custom_id)
+    create_collects(custom_id, ids)
+    return jsonify({"success":True, "customId":custom_id, "count":len(ids)})
 
-        custom_res.raise_for_status()
-        smart_res.raise_for_status()
-
-        custom_data = custom_res.json().get("custom_collections", [])
-        smart_data = smart_res.json().get("smart_collections", [])
-
-        all_collections = custom_data + smart_data
-        collection_ids = [{"id": c["id"], "title": c["title"]} for c in all_collections]
-
-        return jsonify(collection_ids)
-    except requests.RequestException as e:
-        print(f"Shopify API error: {e}")
-        return jsonify([]), 500
-
-# Shuffle Schedule Placeholder
-@app.route("/api/schedule", methods=["POST"])
-def set_shuffle_schedule():
-    data = request.get_json()
-    collection_id = data.get("collectionId")
-    interval = data.get("interval")
-    print(f"Scheduled shuffle for collection {collection_id} every {interval}")
-    return jsonify({"success": True})
-
-# Shuffle Now Endpoint
-@app.route("/api/shuffle-now", methods=["POST"])
-def shuffle_collection_now():
-    access_token = session.get("shopify_token")
-    if not access_token:
-        return jsonify({"error": "Unauthorized"}), 401
-
-    data = request.get_json()
-    collection_id = data.get("collectionId")
-
-    products_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects.json?collection_id={collection_id}"
-    headers = {
-        "X-Shopify-Access-Token": access_token,
-        "Content-Type": "application/json"
-    }
-
-    try:
-        res = requests.get(products_url, headers=headers)
-        res.raise_for_status()
-        collects = res.json().get("collects", [])
-        product_ids = [c["product_id"] for c in collects]
-        random.shuffle(product_ids)
-
-        # Reorder collect positions (note: only works with custom_collections)
-        for position, product_id in enumerate(product_ids):
-            update_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects/set.json"
-            payload = {
-                "collect": {
-                    "collection_id": collection_id,
-                    "product_id": product_id,
-                    "position": position + 1
-                }
-            }
-            requests.post(update_url, headers=headers, json=payload)
-
-        return jsonify({"success": True, "shuffled": len(product_ids)})
-    except requests.RequestException as e:
-        print(f"Shuffle failed: {e}")
-        return jsonify({"error": "Shuffle failed"}), 500
-    
-# Serve Frontend
-@app.route("/")
-def serve_index():
+@app.route("/", defaults={"p":""})
+@app.route("/<path:p>")
+def spa(p):
     return send_from_directory(app.static_folder, "index.html")
 
-@app.route("/<path:path>")
-def serve_static(path):
-    return send_from_directory(app.static_folder, path)
-
-if __name__ == "__main__":
-    app.run(debug=False, host="0.0.0.0", port=5000)
+if __name__=="__main__":
+    app.run(host="0.0.0.0", port=5000)
