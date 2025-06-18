@@ -9,14 +9,12 @@ app = Flask(__name__, static_folder="static")
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev")
 CORS(app)
 
-# Environment Variables
 SHOPIFY_API_KEY = os.getenv("SHOPIFY_API_KEY")
 SHOPIFY_API_SECRET = os.getenv("SHOPIFY_API_SECRET")
 SHOPIFY_STORE = os.getenv("SHOPIFY_STORE")
 API_VERSION = "2025-07"
 REDIRECT_URI = os.getenv("REDIRECT_URI", "https://shufflecollections.onrender.com/api/auth/callback")
 
-# OAuth Authorization Step 1
 @app.route("/api/auth")
 def auth():
     params = {
@@ -28,7 +26,6 @@ def auth():
     url = f"https://{SHOPIFY_STORE}/admin/oauth/authorize?{urlencode(params)}"
     return redirect(url)
 
-# OAuth Callback Step 2
 @app.route("/api/auth/callback")
 def auth_callback():
     code = request.args.get("code")
@@ -50,7 +47,6 @@ def auth_callback():
         print("OAuth callback failed:", e)
         return "Auth error", 500
 
-# Fetch Custom Collections
 @app.route("/api/collections")
 def get_collection_ids():
     access_token = session.get("shopify_token")
@@ -89,7 +85,7 @@ def create_mirror():
 
     data = request.get_json()
     smart_id = data.get("smart_id")
-    manual_id = data.get("manual_id")  # Optional
+    manual_id = data.get("manual_id")
     title = data.get("title") or "Shuffle Mirror"
 
     headers = {
@@ -97,7 +93,6 @@ def create_mirror():
         "Content-Type": "application/json"
     }
 
-    # Create mirror if manual_id not provided
     if not manual_id:
         create_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/custom_collections.json"
         payload = {"custom_collection": {"title": title}}
@@ -109,14 +104,19 @@ def create_mirror():
             print("Mirror creation failed:", e)
             return jsonify({"error": "Failed to create mirror collection"}), 500
 
-    # Fetch products from smart collection
-    product_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/products.json?collection_id={smart_id}"
+    product_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/products.json?collection_id={smart_id}&limit=250"
     try:
         res = requests.get(product_url, headers=headers)
         res.raise_for_status()
         products = res.json().get("products", [])
         product_ids = [p["id"] for p in products]
         random.shuffle(product_ids)
+
+        # Clear old collects
+        clear_collects = requests.get(f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects.json?collection_id={manual_id}&limit=250", headers=headers)
+        if clear_collects.ok:
+            for c in clear_collects.json().get("collects", []):
+                requests.delete(f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects/{c['id']}.json", headers=headers)
 
         for position, pid in enumerate(product_ids):
             collect_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects.json"
@@ -134,7 +134,6 @@ def create_mirror():
         print("Error syncing products:", e)
         return jsonify({"error": "Failed syncing products to mirror"}), 500
 
-# Shuffle Schedule Placeholder
 @app.route("/api/schedule", methods=["POST"])
 def set_shuffle_schedule():
     data = request.get_json()
@@ -142,7 +141,6 @@ def set_shuffle_schedule():
     interval = data.get("interval")
     print(f"Scheduled shuffle for collection {collection_id} every {interval}")
     return jsonify({"success": True})
-
 
 @app.route("/api/shuffle-now", methods=["POST"])
 def shuffle_collection_now():
@@ -157,10 +155,7 @@ def shuffle_collection_now():
         "Content-Type": "application/json"
     }
 
-    # Convert numeric ID to GID
     gid = f"gid://shopify/Collection/{collection_id}"
-
-    # Get collects (products in collection)
     collects_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects.json?collection_id={collection_id}&limit=250"
     try:
         res = requests.get(collects_url, headers=headers)
@@ -169,22 +164,20 @@ def shuffle_collection_now():
         product_ids = [c["product_id"] for c in collects]
         random.shuffle(product_ids)
 
-        # Convert product IDs to GIDs
         moves = [{
             "id": f"gid://shopify/Product/{pid}",
             "newPosition": str(idx)
         } for idx, pid in enumerate(product_ids)]
 
-        # GraphQL Mutation
         gql_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/graphql.json"
         query = """
         mutation collectionReorder($id: ID!, $moves: [MoveInput!]!) {
-        collectionReorderProducts(id: $id, moves: $moves) {
-            job { id }
-            userErrors { field message }
+            collectionReorderProducts(id: $id, moves: $moves) {
+                job { id }
+                userErrors { field message }
+            }
         }
-    }
-"""
+        """
 
         gql_payload = {
             "query": query,
@@ -204,7 +197,6 @@ def shuffle_collection_now():
         print("Shuffle failed:", e)
         return jsonify({"error": "Shuffle failed"}), 500
 
-# Serve Frontend
 @app.route("/")
 def serve_index():
     return send_from_directory(app.static_folder, "index.html")
