@@ -48,16 +48,24 @@ mirrorBtn.onclick = () => {
 };
 
 shuffleBtn.onclick = () => {
-  const collectionId = mirrorSelect.value;
+  const manualId = mirrorSelect.value;
+  if (!manualId || manualId === "-- Create New --") {
+    statusText.textContent = "Please select a valid mirror collection.";
+    return;
+  }
+
   fetch("/api/shuffle-now", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ collectionId })
+    body: JSON.stringify({ collectionId: manualId })
   })
-  .then(res => res.json())
-  .then(res => {
-    statusText.textContent = res.success
-      ? `Shuffled ${res.shuffled} products!`
-      : res.error || "Failed to shuffle.";
-  });
+    .then(res => res.json())
+    .then(res => {
+      if (res.success) {
+        statusText.textContent = `Shuffled ${res.shuffled} products!`;
+      } else {
+        statusText.textContent = res.error || "Failed to shuffle.";
+      }
+    });
 };
+
