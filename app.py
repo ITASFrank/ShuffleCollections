@@ -91,22 +91,41 @@ def shuffle_collection_now():
         "Content-Type": "application/json"
     }
 
+    # Always use GraphQL to fetch product GIDs
     gid = f"gid://shopify/Collection/{collection_id}"
-    collects_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects.json?collection_id={collection_id}&limit=250"
+    gql_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/graphql.json"
+
+    # GraphQL query to fetch product IDs in the collection
+    query = """
+    query getCollectionProducts($id: ID!) {
+        collection(id: $id) {
+            products(first: 250) {
+                edges {
+                    node {
+                        id
+                    }
+                }
+            }
+        }
+    }
+    """
+
     try:
-        res = requests.get(collects_url, headers=headers)
-        res.raise_for_status()
-        collects = res.json().get("collects", [])
-        product_ids = [c["product_id"] for c in collects]
+        gql_res = requests.post(
+            gql_url,
+            headers=headers,
+            json={"query": query, "variables": {"id": gid}}
+        )
+        gql_res.raise_for_status()
+        edges = gql_res.json()["data"]["collection"]["products"]["edges"]
+        product_ids = [edge["node"]["id"] for edge in edges]
         random.shuffle(product_ids)
 
-        moves = [{
-            "id": f"gid://shopify/Product/{pid}",
-            "newPosition": str(idx)
-        } for idx, pid in enumerate(product_ids)]
+        # Build moves array
+        moves = [{"id": pid, "newPosition": str(idx)} for idx, pid in enumerate(product_ids)]
 
-        gql_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/graphql.json"
-        query = """
+        # Reorder mutation
+        mutation = """
         mutation collectionReorder($id: ID!, $moves: [MoveInput!]!) {
             collectionReorderProducts(id: $id, moves: $moves) {
                 job { id }
@@ -115,17 +134,13 @@ def shuffle_collection_now():
         }
         """
 
-        gql_payload = {
-            "query": query,
-            "variables": {
-                "id": gid,
-                "moves": moves
-            }
-        }
-
-        gql_res = requests.post(gql_url, headers=headers, json=gql_payload)
-        gql_res.raise_for_status()
-        result = gql_res.json()
+        reorder_res = requests.post(
+            gql_url,
+            headers=headers,
+            json={"query": mutation, "variables": {"id": gid, "moves": moves}}
+        )
+        reorder_res.raise_for_status()
+        result = reorder_res.json()
         return jsonify({"success": True, "response": result})
 
     except Exception as e:
