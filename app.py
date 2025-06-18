@@ -128,9 +128,14 @@ def create_mirror():
         print("GQL RESPONSE:", json_data)
 
         try:
+            gql_res = requests.post(gql_url, headers=headers, json={"query": query, "variables": variables})
+            gql_res.raise_for_status()
+            print("RAW GQL RESPONSE:", gql_res.text)
+            json_data = gql_res.json()
             products = json_data["data"]["collection"]["products"]["edges"]
-        except KeyError:
-            return jsonify({"error": "GraphQL response missing 'data'"}), 500
+        except Exception as e:
+            print("GraphQL fetch failed:", e)
+            return jsonify({"error": "Failed to fetch products via GraphQL"}), 500
         
         product_ids = [edge["node"]["id"].split("/")[-1] for edge in products]
         random.shuffle(product_ids)
