@@ -56,11 +56,11 @@ shuffleBtn.onclick = () => {
     return;
   }
 
-  fetch("/api/shuffle-now", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ smart_id: smartId, manual_id: manualId })
-  })
+fetch("/api/shuffle-now", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ collectionId: manualId })
+})
     .then(res => res.json())
     .then(res => {
       if (res.success) {
