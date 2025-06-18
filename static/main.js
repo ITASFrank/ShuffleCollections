@@ -28,3 +28,22 @@ document.addEventListener("DOMContentLoaded", () => {
     statusText.textContent = json.success ? "Scheduled" : "Failed";
   };
 });
+
+document.getElementById("quickShuffleBtn").addEventListener("click", async () => {
+  const collectionId = document.getElementById("collection").value;
+  const res = await fetch("/api/shuffle-now", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ collectionId })
+  });
+
+  const result = await res.json();
+  const statusText = document.getElementById("statusText");
+  if (result.success) {
+    statusText.textContent = `Shuffled ${result.shuffled} products!`;
+  } else {
+    statusText.textContent = "Shuffle failed.";
+  }
+});

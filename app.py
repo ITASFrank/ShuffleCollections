@@ -1,5 +1,6 @@
 import os
 import requests
+import random
 from flask import Flask, jsonify, redirect, request, session, send_from_directory
 from flask_cors import CORS
 from urllib.parse import urlencode
@@ -90,6 +91,46 @@ def set_shuffle_schedule():
     print(f"Scheduled shuffle for collection {collection_id} every {interval}")
     return jsonify({"success": True})
 
+# Shuffle Now Endpoint
+@app.route("/api/shuffle-now", methods=["POST"])
+def shuffle_collection_now():
+    access_token = session.get("shopify_token")
+    if not access_token:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.get_json()
+    collection_id = data.get("collectionId")
+
+    products_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects.json?collection_id={collection_id}"
+    headers = {
+        "X-Shopify-Access-Token": access_token,
+        "Content-Type": "application/json"
+    }
+
+    try:
+        res = requests.get(products_url, headers=headers)
+        res.raise_for_status()
+        collects = res.json().get("collects", [])
+        product_ids = [c["product_id"] for c in collects]
+        random.shuffle(product_ids)
+
+        # Reorder collect positions (note: only works with custom_collections)
+        for position, product_id in enumerate(product_ids):
+            update_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects/set.json"
+            payload = {
+                "collect": {
+                    "collection_id": collection_id,
+                    "product_id": product_id,
+                    "position": position + 1
+                }
+            }
+            requests.post(update_url, headers=headers, json=payload)
+
+        return jsonify({"success": True, "shuffled": len(product_ids)})
+    except requests.RequestException as e:
+        print(f"Shuffle failed: {e}")
+        return jsonify({"error": "Shuffle failed"}), 500
+    
 # Serve Frontend
 @app.route("/")
 def serve_index():
