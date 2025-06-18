@@ -81,6 +81,58 @@ def get_collection_ids():
         print(f"Shopify API error: {e}")
         return jsonify({"error": "API failure"}), 500
 
+@app.route("/api/mirror", methods=["POST"])
+def create_mirror():
+    access_token = session.get("shopify_token")
+    if not access_token:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.get_json()
+    smart_id = data.get("smart_id")
+    manual_id = data.get("manual_id")  # Optional
+    title = data.get("title") or "Shuffle Mirror"
+
+    headers = {
+        "X-Shopify-Access-Token": access_token,
+        "Content-Type": "application/json"
+    }
+
+    # Create mirror if manual_id not provided
+    if not manual_id:
+        create_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/custom_collections.json"
+        payload = {"custom_collection": {"title": title}}
+        try:
+            res = requests.post(create_url, headers=headers, json=payload)
+            res.raise_for_status()
+            manual_id = res.json()["custom_collection"]["id"]
+        except Exception as e:
+            print("Mirror creation failed:", e)
+            return jsonify({"error": "Failed to create mirror collection"}), 500
+
+    # Fetch products from smart collection
+    product_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/products.json?collection_id={smart_id}"
+    try:
+        res = requests.get(product_url, headers=headers)
+        res.raise_for_status()
+        products = res.json().get("products", [])
+        product_ids = [p["id"] for p in products]
+        random.shuffle(product_ids)
+
+        for position, pid in enumerate(product_ids):
+            collect_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects.json"
+            collect_payload = {
+                "collect": {
+                    "collection_id": manual_id,
+                    "product_id": pid,
+                    "position": position + 1
+                }
+            }
+            requests.post(collect_url, headers=headers, json=collect_payload)
+
+        return jsonify({"success": True, "mirror_created": True, "mirror_id": manual_id})
+    except Exception as e:
+        print("Error syncing products:", e)
+        return jsonify({"error": "Failed syncing products to mirror"}), 500
 
 # Shuffle Schedule Placeholder
 @app.route("/api/schedule", methods=["POST"])

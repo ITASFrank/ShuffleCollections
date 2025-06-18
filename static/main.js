@@ -47,18 +47,17 @@ mirrorBtn.onclick = () => {
     });
 };
 
-// Shuffle logic
 shuffleBtn.onclick = () => {
-  const smartId = smartSelect.value;
+  const collectionId = mirrorSelect.value;
   fetch("/api/shuffle-now", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ smart_id: smartId })
+    body: JSON.stringify({ collectionId })
   })
-    .then(res => res.json())
-    .then(res => {
-      statusText.textContent = res.success
-        ? `Shuffled ${res.products_shuffled} products!`
-        : res.error || "Failed to shuffle.";
-    });
+  .then(res => res.json())
+  .then(res => {
+    statusText.textContent = res.success
+      ? `Shuffled ${res.shuffled} products!`
+      : res.error || "Failed to shuffle.";
+  });
 };
