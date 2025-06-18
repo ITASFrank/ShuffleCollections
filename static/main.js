@@ -3,9 +3,9 @@ const mirrorSelect = document.getElementById("manualCollectionSelect");
 const mirrorName = document.getElementById("mirrorName");
 const mirrorBtn = document.getElementById("mirrorBtn");
 const shuffleBtn = document.getElementById("shuffleBtn");
+const shuffleAllBtn = document.getElementById("shuffleAllBtn");
 const statusText = document.getElementById("statusText");
 
-// Fetch and populate collection dropdowns
 fetch("/api/collections")
   .then(res => res.json())
   .then(data => {
@@ -28,7 +28,6 @@ fetch("/api/collections")
     statusText.textContent = "Failed to load collections.";
   });
 
-// Mirror creation logic
 mirrorBtn.onclick = () => {
   const smartId = smartSelect.value;
   const manualId = mirrorSelect.value || null;
@@ -48,27 +47,36 @@ mirrorBtn.onclick = () => {
 };
 
 shuffleBtn.onclick = () => {
-  const smartId = document.getElementById("smartCollectionSelect").value;
-  const manualId = document.getElementById("manualCollectionSelect").value;
+  const smartId = smartSelect.value;
+  const manualId = mirrorSelect.value;
 
   if (!smartId || !manualId) {
     statusText.textContent = "Please select both collections.";
     return;
   }
 
-fetch("/api/shuffle-now", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ collectionId: manualId })
-})
+  fetch("/api/shuffle-now", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ collectionId: manualId })
+  })
     .then(res => res.json())
     .then(res => {
       if (res.success) {
-        statusText.textContent = `Shuffled ${res.products_shuffled} products!`;
+        statusText.textContent = "Shuffled successfully.";
       } else {
         statusText.textContent = res.error || "Failed to shuffle.";
       }
     });
 };
 
-
+shuffleAllBtn.onclick = () => {
+  fetch("/api/shuffle-all", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" }
+  })
+    .then(res => res.json())
+    .then(res => {
+      statusText.textContent = res.error ? res.error : "All collections shuffled.";
+    });
+};
