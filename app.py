@@ -197,6 +197,7 @@ def shuffle_collection_now():
         gql_res = requests.post(gql_url, headers=headers, json=gql_payload)
         gql_res.raise_for_status()
         result = gql_res.json()
+        print("GraphQL Response:", result)
         return jsonify({"success": True, "response": result})
 
     except Exception as e:
