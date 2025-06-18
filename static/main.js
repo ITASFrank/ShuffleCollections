@@ -1,64 +1,47 @@
-document.addEventListener("DOMContentLoaded", () => {
-  const collectionSelect = document.getElementById("collection");
-  const intervalSelect = document.getElementById("interval");
-  const scheduleBtn = document.getElementById("scheduleBtn");
-  const statusText = document.getElementById("statusText");
+async function fetchCollections() {
+  const res = await fetch("/api/collections");
+  const collections = await res.json();
+  const smart = collections.filter(c => c.type === "smart");
+  const manual = collections.filter(c => c.type === "manual");
 
-  fetch("/api/collections")
-    .then(res => res.json())
-    .then(data => {
-      data.forEach(col => {
-        const option = document.createElement("option");
-        option.value = col.id;
-        option.textContent = col.title;
-        collectionSelect.appendChild(option);
-      });
-    });
+  const smartSelect = document.getElementById("smartSelect");
+  const mirrorSelect = document.getElementById("mirrorSelect");
 
-  scheduleBtn.onclick = async () => {
-    const res = await fetch("/api/schedule", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        collectionId: collectionSelect.value,
-        interval: intervalSelect.value
-      })
-    });
-    const json = await res.json();
-    statusText.textContent = json.success ? "Scheduled" : "Failed";
+  smart.forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = c.id;
+    opt.textContent = c.title;
+    smartSelect.appendChild(opt);
+  });
+
+  manual.forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = c.id;
+    opt.textContent = c.title;
+    mirrorSelect.appendChild(opt);
+  });
+}
+
+document.getElementById("shuffleBtn").addEventListener("click", async () => {
+  const smartId = document.getElementById("smartSelect").value;
+  const mirrorId = document.getElementById("mirrorSelect").value;
+  const mirrorTitle = document.getElementById("mirrorTitle").value;
+  const status = document.getElementById("status");
+
+  const body = {
+    smart_id: smartId,
+    mirror_id: mirrorId || null,
+    mirror_title: mirrorTitle || "Shuffled Collection"
   };
-});
 
-document.getElementById("quickShuffleBtn").addEventListener("click", async () => {
-  const collectionId = document.getElementById("collection").value;
-  const res = await fetch("/api/shuffle-now", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ collectionId })
-  });
-
-  const result = await res.json();
-  const statusText = document.getElementById("statusText");
-  if (result.success) {
-    statusText.textContent = `Shuffled ${result.shuffled} products!`;
-  } else {
-    statusText.textContent = "Shuffle failed.";
-  }
-});
-document.getElementById("run").onclick = async ()=>{
-  const smartId = document.getElementById("smartId").value;
-  const customId = document.getElementById("customId").value;
-  const title = document.getElementById("title").value;
   const res = await fetch("/api/mirror-shuffle", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({ smartId, customId: customId||null, title })
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
   });
-  const json = await res.json();
-  if(json.success){
-    document.getElementById("result").innerText =
-      `Shuffled ${json.count} products into Custom Collection ID ${json.customId}`;
-  } else document.getElementById("result").innerText = `Error`;
-};
+
+  const data = await res.json();
+  status.textContent = data.success ? "Shuffling complete!" : `Error: ${data.error}`;
+});
+
+window.onload = fetchCollections;

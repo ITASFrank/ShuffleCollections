@@ -1,12 +1,31 @@
 <!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>Mirror Shuffle</title></head>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Shopify Collection Shuffle</title>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
 <body>
-  <h1>Shuffle Smart Collection!</h1>
-  <label>Smart Collection ID: <input id="smartId"></label><br>
-  <label>Mirror Custom ID (optional): <input id="customId"></label><br>
-  <label>Mirror Title: <input id="title" value="Shuffle Mirror"></label><br>
-  <button id="run">Mirror & Shuffle</button>
-  <div id="result"></div>
+  <div class="container">
+    <h1>Smart Collection Mirror & Shuffle</h1>
+    <div class="form-group">
+      <label for="smartSelect">Smart Collection:</label>
+      <select id="smartSelect"></select>
+    </div>
+    <div class="form-group">
+      <label for="mirrorSelect">Manual Mirror Collection (or create new):</label>
+      <select id="mirrorSelect">
+        <option value="">Create New</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="mirrorTitle">If creating new, title:</label>
+      <input type="text" id="mirrorTitle" placeholder="e.g., Clearance Shuffle"/>
+    </div>
+    <button id="shuffleBtn">Create / Update Mirror</button>
+    <p id="status"></p>
+  </div>
   <script src="main.js"></script>
 </body>
 </html>
