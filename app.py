@@ -1,6 +1,7 @@
 import os
 import requests
 import random
+import re
 from flask import Flask, jsonify, redirect, request, session, send_from_directory
 from flask_cors import CORS
 from urllib.parse import urlencode
@@ -105,35 +106,22 @@ def create_mirror():
             return jsonify({"error": "Failed to create mirror collection"}), 500
 
     try:
-        gql_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/graphql.json"
-        query = """
-        query getProducts($collectionId: ID!) {
-            collection(id: $collectionId) {
-                products(first: 100) {
-                    edges {
-                        node {
-                            id
-                        }
-                    }
-                }
-            }
-        }
-        """
+        # Use REST to get all products from smart collection including drafts
+        products = []
+        next_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/products.json?collection_id={smart_id}&published_status=any&limit=250"
 
-        variables = {"collectionId": f"gid://shopify/Collection/{smart_id}"}
-        gql_res = requests.post(gql_url, headers=headers, json={"query": query, "variables": variables})
-        gql_res.raise_for_status()
+        while next_url:
+            res = requests.get(next_url, headers=headers)
+            res.raise_for_status()
+            products.extend(res.json().get("products", []))
+            next_url = None
+            link_header = res.headers.get("Link", "")
+            if 'rel="next"' in link_header:
+                match = re.search(r'<([^>]+)>; rel="next"', link_header)
+                if match:
+                    next_url = match.group(1)
 
-        print("RAW GQL RESPONSE:", gql_res.text)
-        json_data = gql_res.json()
-
-        try:
-            products = json_data["data"]["collection"]["products"]["edges"]
-        except KeyError as e:
-            print("GraphQL key error:", e)
-            return jsonify({"error": "GraphQL data format issue"}), 500
-
-        product_ids = [edge["node"]["id"].split("/")[-1] for edge in products]
+        product_ids = [p["id"] for p in products]
         random.shuffle(product_ids)
 
         clear_collects = requests.get(f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects.json?collection_id={manual_id}&limit=250", headers=headers)
