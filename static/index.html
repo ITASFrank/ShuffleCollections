@@ -2,30 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Shopify Smart Collection Shuffle</title>
+  <title>Shopify Collection Shuffler</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
   <div class="container">
-    <h1>Smart → Manual Shuffle Mirror</h1>
+    <h1>Shuffle Collection</h1>
 
     <div class="card">
-      <label for="smartCollectionSelect">Smart Collection</label>
-      <select id="smartCollectionSelect"></select>
+      <label for="collectionSelect">Select Collection</label>
+      <select id="collectionSelect"></select>
 
-      <label for="manualCollectionSelect">Mirror Custom Collection</label>
-      <select id="manualCollectionSelect">
-        <option value="">-- Create New --</option>
-      </select>
-
-      <label for="mirrorName">If new, Mirror Collection Title:</label>
-      <input id="mirrorName" placeholder="Shuffle Mirror" />
-
-      <button id="mirrorBtn">Create Mirror</button>
-      <button id="shuffleBtn">Shuffle Now</button>
-      <button id="shuffleAllBtn">Shuffle All</button>
-
+      <button id="shuffleBtn">Shuffle Selected Collection</button>
       <p id="statusText"></p>
     </div>
   </div>
