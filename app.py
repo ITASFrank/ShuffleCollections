@@ -56,19 +56,26 @@ def get_collection_ids():
     if not access_token:
         return jsonify({"error": "Unauthorized"}), 401
 
-    url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/custom_collections.json"
+    base_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}"
     headers = {
         "X-Shopify-Access-Token": access_token,
         "Content-Type": "application/json"
     }
 
     try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        data = response.json()
-        collection_ids = [
-            {"id": c["id"], "title": c["title"]} for c in data.get("custom_collections", [])
-        ]
+        # Fetch both custom and smart collections
+        custom_res = requests.get(f"{base_url}/custom_collections.json", headers=headers)
+        smart_res = requests.get(f"{base_url}/smart_collections.json", headers=headers)
+
+        custom_res.raise_for_status()
+        smart_res.raise_for_status()
+
+        custom_data = custom_res.json().get("custom_collections", [])
+        smart_data = smart_res.json().get("smart_collections", [])
+
+        all_collections = custom_data + smart_data
+        collection_ids = [{"id": c["id"], "title": c["title"]} for c in all_collections]
+
         return jsonify(collection_ids)
     except requests.RequestException as e:
         print(f"Shopify API error: {e}")
