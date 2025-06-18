@@ -108,20 +108,19 @@ def create_mirror():
         gql_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/graphql.json"
         query = """
         query getProducts($collectionId: ID!) {
-            collection(id: $collectionId) {
-                products(first: 100, published_status: ANY) {
-                    edges {
-                        node {
-                            id
-                        }
-                    }
+        collection(id: $collectionId) {
+            products(first: 100) {
+            edges {
+                node {
+                id
                 }
             }
+            }
+        }
         }
         """
 
         variables = {"collectionId": f"gid://shopify/Collection/{smart_id}"}
-        
         print("RAW GraphQL Response:", gql_res.text)
         gql_res = requests.post(gql_url, headers=headers, json={"query": query, "variables": variables})
         gql_res.raise_for_status()
