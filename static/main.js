@@ -1,68 +1,14 @@
-const smartSelect = document.getElementById("smartSelect");
-const mirrorSelect = document.getElementById("mirrorSelect");
+const smartSelect = document.getElementById("smartCollectionSelect");
+const mirrorSelect = document.getElementById("manualCollectionSelect");
 const mirrorName = document.getElementById("mirrorName");
 const mirrorBtn = document.getElementById("mirrorBtn");
 const shuffleBtn = document.getElementById("shuffleBtn");
 const statusText = document.getElementById("statusText");
 
-let allCollections = [];
-
+// Fetch and populate collection dropdowns
 fetch("/api/collections")
   .then(res => res.json())
   .then(data => {
-    allCollections = data;
-    data.forEach(col => {
-      const opt = document.createElement("option");
-      opt.value = col.id;
-      opt.textContent = `${col.title} (${col.id})`;
-      if (col.rules) smartSelect.appendChild(opt);
-      else mirrorSelect.appendChild(opt.cloneNode(true));
-    });
-  });
-
-mirrorBtn.onclick = () => {
-  const smartId = smartSelect.value;
-  const manualId = mirrorSelect.value || null;
-  const title = mirrorName.value || "Shuffle Mirror";
-
-  fetch("/api/mirror", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ smart_id: smartId, manual_id: manualId, title })
-  })
-    .then(res => res.json())
-    .then(res => {
-      if (res.mirror_created) {
-        statusText.textContent = "Mirror set! Now shuffle!";
-      } else {
-        statusText.textContent = res.error || "Error creating mirror.";
-      }
-    });
-};
-
-shuffleBtn.onclick = () => {
-  const smartId = smartSelect.value;
-  fetch("/api/shuffle-now", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ smart_id: smartId })
-  })
-    .then(res => res.json())
-    .then(res => {
-      if (res.success) {
-        statusText.textContent = `Shuffled ${res.products_shuffled} products!`;
-      } else {
-        statusText.textContent = res.error || "Failed to shuffle.";
-      }
-    });
-};
-
-fetch("/api/collections")
-  .then(res => res.json())
-  .then(data => {
-    const smartSelect = document.getElementById("smartCollectionSelect");
-    const manualSelect = document.getElementById("manualCollectionSelect");
-
     data.smart.forEach(c => {
       const opt = document.createElement("option");
       opt.value = c.id;
@@ -74,6 +20,45 @@ fetch("/api/collections")
       const opt = document.createElement("option");
       opt.value = c.id;
       opt.textContent = c.title;
-      manualSelect.appendChild(opt);
+      mirrorSelect.appendChild(opt);
     });
+  })
+  .catch(err => {
+    console.error("Error loading collections:", err);
+    statusText.textContent = "Failed to load collections.";
   });
+
+// Mirror creation logic
+mirrorBtn.onclick = () => {
+  const smartId = smartSelect.value;
+  const manualId = mirrorSelect.value || null;
+  const title = mirrorName.value || "Shuffle Mirror";
+
+  fetch("/api/mirror", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ smart_id: smartId, manual_id: manualId, title })
+  })
+    .then(res => res.json())
+    .then(res => {
+      statusText.textContent = res.mirror_created
+        ? "Mirror set! Now shuffle!"
+        : res.error || "Error creating mirror.";
+    });
+};
+
+// Shuffle logic
+shuffleBtn.onclick = () => {
+  const smartId = smartSelect.value;
+  fetch("/api/shuffle-now", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ smart_id: smartId })
+  })
+    .then(res => res.json())
+    .then(res => {
+      statusText.textContent = res.success
+        ? `Shuffled ${res.products_shuffled} products!`
+        : res.error || "Failed to shuffle.";
+    });
+};
