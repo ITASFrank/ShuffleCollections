@@ -48,19 +48,27 @@ mirrorBtn.onclick = () => {
 };
 
 shuffleBtn.onclick = () => {
-  const manualId = mirrorSelect.value;
-  if (!manualId || manualId === "-- Create New --") {
-    statusText.textContent = "Please select a valid mirror collection.";
+  const smartId = document.getElementById("smartCollectionSelect").value;
+  const manualId = document.getElementById("manualCollectionSelect").value;
+
+  if (!smartId || !manualId) {
+    statusText.textContent = "Please select both collections.";
     return;
   }
 
-fetch("/api/shuffle-now", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    smart_id: document.getElementById("smartCollectionSelect").value,
-    manual_id: document.getElementById("manualCollectionSelect").value
+  fetch("/api/shuffle-now", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ smart_id: smartId, manual_id: manualId })
   })
-});
+    .then(res => res.json())
+    .then(res => {
+      if (res.success) {
+        statusText.textContent = `Shuffled ${res.products_shuffled} products!`;
+      } else {
+        statusText.textContent = res.error || "Failed to shuffle.";
+      }
+    });
 };
+
 
