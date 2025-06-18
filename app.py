@@ -104,12 +104,12 @@ def create_mirror():
             print("Mirror creation failed:", e)
             return jsonify({"error": "Failed to create mirror collection"}), 500
 
-    product_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/products.json?collection_id={smart_id}&limit=250"
+    collects_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects.json?collection_id={smart_id}&limit=250"
     try:
-        res = requests.get(product_url, headers=headers)
+        res = requests.get(collects_url, headers=headers)
         res.raise_for_status()
-        products = res.json().get("products", [])
-        product_ids = [p["id"] for p in products]
+        collects = res.json().get("collects", [])
+        product_ids = list({c["product_id"] for c in collects})  # Use set to prevent duplicates
         random.shuffle(product_ids)
 
         # Clear old collects
