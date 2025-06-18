@@ -104,15 +104,31 @@ def create_mirror():
             print("Mirror creation failed:", e)
             return jsonify({"error": "Failed to create mirror collection"}), 500
 
-    collects_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects.json?collection_id={smart_id}&limit=250"
     try:
-        res = requests.get(collects_url, headers=headers)
-        res.raise_for_status()
-        collects = res.json().get("collects", [])
-        product_ids = list({c["product_id"] for c in collects})  # Use set to prevent duplicates
+        gql_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/graphql.json"
+        query = """
+        query getProducts($collectionId: ID!) {
+            collection(id: $collectionId) {
+                products(first: 250) {
+                    edges {
+                        node {
+                            id
+                        }
+                    }
+                }
+            }
+        }
+        """
+
+        variables = {"collectionId": f"gid://shopify/Collection/{smart_id}"}
+
+        gql_res = requests.post(gql_url, headers=headers, json={"query": query, "variables": variables})
+        gql_res.raise_for_status()
+        products = gql_res.json()["data"]["collection"]["products"]["edges"]
+        product_ids = [edge["node"]["id"].split("/")[-1] for edge in products]
         random.shuffle(product_ids)
 
-        # Clear old collects
+        # Clear existing collects from mirror collection
         clear_collects = requests.get(f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects.json?collection_id={manual_id}&limit=250", headers=headers)
         if clear_collects.ok:
             for c in clear_collects.json().get("collects", []):
