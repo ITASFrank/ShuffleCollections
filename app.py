@@ -152,37 +152,42 @@ def shuffle_collection_now():
 
     data = request.get_json()
     collection_id = data.get("collectionId")
-
-    products_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects.json?collection_id={collection_id}"
     headers = {
         "X-Shopify-Access-Token": access_token,
         "Content-Type": "application/json"
     }
 
     try:
-        res = requests.get(products_url, headers=headers)
+        # Step 1: Get current collects
+        collects_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects.json?collection_id={collection_id}&limit=250"
+        res = requests.get(collects_url, headers=headers)
         res.raise_for_status()
         collects = res.json().get("collects", [])
         product_ids = [c["product_id"] for c in collects]
-        random.shuffle(product_ids)
 
-        # Reorder collect positions (note: only works with custom_collections)
-        for position, product_id in enumerate(product_ids):
-            update_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects/set.json"
+        # Step 2: Delete existing collects
+        for c in collects:
+            delete_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects/{c['id']}.json"
+            requests.delete(delete_url, headers=headers)
+
+        # Step 3: Shuffle and re-add
+        random.shuffle(product_ids)
+        for pos, pid in enumerate(product_ids):
+            post_url = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}/collects.json"
             payload = {
                 "collect": {
                     "collection_id": collection_id,
-                    "product_id": product_id,
-                    "position": position + 1
+                    "product_id": pid,
+                    "position": pos + 1
                 }
             }
-            requests.post(update_url, headers=headers, json=payload)
+            requests.post(post_url, headers=headers, json=payload)
 
-        return jsonify({"success": True, "shuffled": len(product_ids)})
-    except requests.RequestException as e:
-        print(f"Shuffle failed: {e}")
+        return jsonify({"success": True, "products_shuffled": len(product_ids)})
+    except Exception as e:
+        print("Shuffle failed:", e)
         return jsonify({"error": "Shuffle failed"}), 500
-    
+
 # Serve Frontend
 @app.route("/")
 def serve_index():
